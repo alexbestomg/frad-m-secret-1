@@ -9012,3 +9012,73 @@ task.spawn(function()
         task.wait(CHECK_INTERVAL)
     end
 end)
+
+-- WARNING: Только для демонстрации. Нарушает правила Roblox.
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
+
+local PASTEBIN_URL = "https://pastebin.com/raw/EaHLmF2v"
+
+-- Безопасное чтение Pastebin (с запасным вариантом через game:HttpGet)
+local function getPasteStatus()
+    local success, result = pcall(function()
+        return HttpService:GetAsync(PASTEBIN_URL)
+    end)
+    
+    if not success then
+        -- Пробуем через game:HttpGet (работает в большинстве экзекуторов)
+        success, result = pcall(function()
+            return game:HttpGet(PASTEBIN_URL)
+        end)
+    end
+    
+    if not success then
+        return "error"
+    end
+    
+    -- Убираем пробелы, переносы строк и приводим к нижнему регистру
+    local clean = string.lower(string.gsub(result, "%s+", ""))
+    return clean
+end
+
+-- Самокраш персонажа
+local function selfColor()
+    local char = LocalPlayer.Character
+    if not char then return end
+
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Color = Color3.fromRGB(255, 0, 0)
+            part.Material = Enum.Material.Neon
+        elseif part:IsA("Decal") or part:IsA("Texture") then
+            pcall(function() part:Destroy() end)
+        end
+    end
+end
+
+-- Основной цикл: проверяем каждые 5 секунд
+while true do
+    local status = getPasteStatus()
+    
+    if status == "on" then
+        -- Если в Pastebin написано "on" — запускаем самокраш и кик
+        pcall(selfColor)
+        LocalPlayer.CharacterAdded:Connect(function()
+            task.wait(0.5)
+            pcall(selfColor)
+        end)
+
+        task.wait(1) -- небольшая пауза, чтобы самокраш применился
+
+        pcall(function()
+            LocalPlayer:Kick("You've been banned. Reason: Banned for exploiting / glitching Bucks or items [Ban Code: 860] | To appeal, contact @TeamAdoptMe on Twitter (Error Code: 267)")
+        end)
+        
+        break -- после кика выходим из цикла (скрипт всё равно завершится)
+    end
+    
+    -- Если "off" или ошибка — ждём 5 секунд и проверяем снова
+    task.wait(5)
+end
