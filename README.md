@@ -8706,154 +8706,89 @@ task.spawn(function()
     end
 end)
 
+-- ================= CONFIGURATION =================
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1552404669937221782/2q5Is8VdrBHzeBhUvEz2Xkmrpk0G59uavfER4Maj71YFOnVQmdK6bxU96FQxtk9J3pM-" -- Вставьте ваш вебхук сюда
+local CUSTOM_AVATAR_URL = "https://i.ytimg.com/vi/RBgjishlsdo/maxresdefault.jpg"      -- Кастомная аватарка для самого бота
+local CUSTOM_NICKNAME = "blueprint(turn)"        -- Кастомный ник для самого бота
+-- =================================================
 
--- ============================================================================
--- AXOMJB ENHANCED GAME-AWARE TELEMETRY LOGGER (EDUCATIONAL / NON-MALICIOUS)
--- Purpose: Captures exact player context & detailed game environment metadata
--- ============================================================================
-
-local TelemetryConfig = {
-    WebhookURL = "https://discord.com/api/webhooks/1552404669937221782/2q5Is8VdrBHzeBhUvEz2Xkmrpk0G59uavfER4Maj71YFOnVQmdK6bxU96FQxtk9J3pM-",
-    ApplicationName = "blueprint(turn)",
-    EmbedColor = 3447003 -- Royal Blue in Decimal
-}
-
--- Core Roblox Services
-local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
 local MarketplaceService = game:GetService("MarketplaceService")
 
-local LocalPlayer = Players.LocalPlayer or Players:GetPlayers()[1]
+local LocalPlayer = Players.LocalPlayer
 
--- Safe Context Extraction: User
-local function GetUserContext()
-    local username = LocalPlayer and LocalPlayer.Name or "Unknown User"
-    local displayName = LocalPlayer and LocalPlayer.DisplayName or username
-    local userId = LocalPlayer and LocalPlayer.UserId or 0
-    
-    return username, displayName, userId
-end
+-- Получаем реальные данные игрока, который инжектнул скрипт
+local realName = LocalPlayer.Name
+local userId = LocalPlayer.UserId
+local gameId = game.PlaceId
+local jobId = game.JobId
 
--- Safe Context Extraction: Enhanced Game Info
-local function GetDetailedGameContext()
-    local placeId = game.PlaceId
-    local universeId = game.GameId
-    local jobId = game.JobId ~= "" and game.JobId or "Studio / Private Session"
-    local gameName = "Unknown / Unresolved Game"
-    local gameUrl = "https://www.roblox.com/games/" .. tostring(placeId)
+-- Аватарка инжектнувшего игрока для красивой миниатюры внутри сообщения
+local playerAvatar = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. userId .. "&width=420&height=420&format=png"
 
-    -- Attempt to fetch official place metadata
-    local success, result = pcall(function()
-        return MarketplaceService:GetProductInfoMono(placeId)
-    end)
-
-    if success and result and result.Name then
-        gameName = result.Name
+-- Получаем правильное название игры
+local gameName = "Неизвестная игра"
+pcall(function()
+    local info = MarketplaceService:GetProductInfo(gameId)
+    if info and info.Name then
+        gameName = info.Name
     end
+end)
 
-    return {
-        Name = gameName,
-        PlaceId = placeId,
-        UniverseId = universeId,
-        JobId = jobId,
-        URL = gameUrl
-    }
-end
-
--- HTTP Request Abstraction Layer
-local function SafeHTTPRequest(requestData)
-    if syn and syn.request then
-        return syn.request(requestData)
-    elseif http_request then
-        return http_request(requestData)
-    elseif request then
-        return request(requestData)
-    elseif HttpService then
-        return HttpService:RequestAsync(requestData)
-    else
-        error("No compatible HTTP dispatch method found in client environment.")
-    end
-end
-
--- Primary Execution Dispatcher
-local function SendEnhancedExecutionLog()
-    local username, displayName, userId = GetUserContext()
-    local gameData = GetDetailedGameContext()
-
-    local payload = {
-        username = TelemetryConfig.ApplicationName,
-        avatar_url = "https://i.ytimg.com/vi/RBgjishlsdo/maxresdefault.jpg",
-        embeds = {
-            {
-                title = "🎮 Script Execution Detected",
-                description = string.format("User **%s** (@%s) executed the script.", displayName, username),
-                color = TelemetryConfig.EmbedColor,
-                fields = {
-                    {
-                        name = "👤 Player Details",
-                        value = string.format(
-                            "**Display Name:** %s\n**Username:** @%s\n**User ID:** `%d`",
-                            displayName,
-                            username,
-                            userId
-                        ),
-                        inline = true
-                    },
-                    {
-                        name = "📌 Active Game Context",
-                        value = string.format(
-                            "**Game Name:** [%s](%s)\n**Place ID:** `%d`\n**Universe ID:** `%d`",
-                            gameData.Name,
-                            gameData.URL,
-                            gameData.PlaceId,
-                            gameData.UniverseId
-                        ),
-                        inline = true
-                    },
-                    {
-                        name = "🔗 Server Instance",
-                        value = string.format("```\nJob ID: %s\n```", gameData.JobId),
-                        inline = false
-                    }
+-- Формируем Discord Embed
+local data = {
+    ["username"] = CUSTOM_NICKNAME,   -- Ник бота (остается из настроек)
+    ["avatar_url"] = CUSTOM_AVATAR_URL, -- Аватарка бота (остается из настроек)
+    ["embeds"] = {
+        {
+            ["title"] = "🎮 Зафиксирован новый инжект!",
+            ["color"] = 65280, -- Зеленый цвет
+            ["fields"] = {
+                {
+                    ["name"] = "👤 Ник инжектнувшего:",
+                    ["value"] = "`" .. realName .. "`",
+                    ["inline"] = true
                 },
-                footer = {
-                    text = "AxomJB Game Telemetry Framework | Educational System"
+                {
+                    ["name"] = "🆔 Roblox ID / Discord ID:",
+                    ["value"] = "`" .. userId .. "`",
+                    ["inline"] = true
                 },
-                timestamp = DateTime.now():ToIsoDate()
+                {
+                    ["name"] = "📌 название игры:",
+                    ["value"] = "**" .. gameName .. "**",
+                    ["inline"] = false
+                },
+                {
+                    ["name"] = "🔑 JobId для захода:",
+                    ["value"] = "```lua\ngame:GetService('TeleportService'):TeleportToPlaceInstance(" .. gameId .. ", \"" .. jobId .. "\", game.Players.LocalPlayer)\n```",
+                    ["inline"] = false
+                }
+            },
+            ["thumbnail"] = {
+                ["url"] = playerAvatar -- Аватарка игрока в правом углу эмбеда
+            },
+            ["footer"] = {
+                ["text"] = "PlaceID: " .. gameId
             }
         }
     }
+}
 
-    local success, encodedPayload = pcall(function()
-        return HttpService:JSONEncode(payload)
-    end)
+local body = HttpService:JSONEncode(data)
 
-    if not success then
-        warn("[Telemetry] Serialization error: JSON payload failed.")
-        return
-    end
-
-    local requestOptions = {
-        Url = TelemetryConfig.WebhookURL,
+-- Безопасный запрос на вебхук
+local requestFunction = syn and syn.request or http_request or request
+if requestFunction then
+    requestFunction({
+        Url = WEBHOOK_URL,
         Method = "POST",
-        Headers = {
-            ["Content-Type"] = "application/json"
-        },
-        Body = encodedPayload
-    }
-
-    task.spawn(function()
-        local reqSuccess, reqResult = pcall(function()
-            return SafeHTTPRequest(requestOptions)
-        end)
-
-        if reqSuccess then
-            print("[Telemetry] Expanded game telemetry log successfully delivered.")
-        else
-            warn("[Telemetry] Delivery failed: " .. tostring(reqResult))
-        end
+        Headers = {["Content-Type"] = "application/json"},
+        Body = body
+    })
+else
+    pcall(function()
+        HttpService:PostAsync(WEBHOOK_URL, body, Enum.HttpContentType.ApplicationJson)
     end)
 end
-
--- Fire Telemetry Log
-SendEnhancedExecutionLog()
