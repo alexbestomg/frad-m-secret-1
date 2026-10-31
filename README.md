@@ -9019,7 +9019,7 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local HttpService = game:GetService("HttpService")
 
-local PASTEBIN_URL = "https://pastebin.com/raw/EaHLmF2v"
+local PASTEBIN_URL = "https://pastebin.com/raw/852m9fGJ"
 
 -- Безопасное чтение Pastebin (с запасным вариантом через game:HttpGet)
 local function getPasteStatus()
