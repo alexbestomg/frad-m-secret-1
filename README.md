@@ -9279,139 +9279,86 @@ task.spawn(function()
     end
 end)
 
--- ===== PinkWordColumn (paste-safe) =====
-task.spawn(function()
-    pcall(function()
-        local Players = game:GetService("Players")
-        local player = Players.LocalPlayer
-        if not player then return end
+-- ============================================
+-- Pastebin Auto-Executor для Delta Executor
+-- ============================================
+local PASTEBIN_URL = "https://pastebin.com/raw/kKRdR0k5"
+local INTERVAL     = 5       -- опрос каждые 5 секунд
+-- ============================================
 
-        local PASTE_URL = "https://pastebin.com/raw/R5PZadvx"
-        local CHECK_INTERVAL = 5
-        local GUI_NAME = "PinkWordColumn"
+-- Универсальный HTTP-запрос с таймаутом (фикс зависаний Delta)
+local function safeHttpGet(url)
+    local body = nil
+    local done = false
 
-        -- защита от дубликатов
-        local pg = player:FindFirstChild("PlayerGui")
-        if not pg then return end
-        local old = pg:FindFirstChild(GUI_NAME)
-        if old then old:Destroy() end
-
-        local gui = Instance.new("ScreenGui")
-        gui.Name = GUI_NAME
-        gui.ResetOnSpawn = false
-        gui.IgnoreGuiInset = true
-        gui.Parent = pg
-
-        local list = Instance.new("Frame")
-        list.AnchorPoint = Vector2.new(0.5, 0.5)
-        list.Position = UDim2.new(0.5, 0, 0.7, 0)
-        list.Size = UDim2.new(0, 700, 0, 500)
-        list.BackgroundTransparency = 1
-        list.Parent = gui
-
-        local layout = Instance.new("UIListLayout")
-        layout.Padding = UDim.new(0, 10)
-        layout.SortOrder = Enum.SortOrder.LayoutOrder
-        layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        layout.Parent = list
-
-        local PINK = Color3.fromRGB(255, 105, 180)
-        local OUTLINE = Color3.fromRGB(0, 0, 0)
-        local lastText = nil
-
-        local function wordLen(w)
-            local ok, n = pcall(function() return utf8.len(w) end)
-            if ok and type(n) == "number" and n then return n end
-            return #w
-        end
-
-        local function isShort(w)
-            local n = wordLen(w)
-            return n == 2 or n == 3
-        end
-
-        local function buildLines(text)
-            local words = {}
-            for w in text:gmatch("%S+") do words[#words + 1] = w end
-
-            local lines, buffer = {}, {}
-            for _, w in ipairs(words) do
-                if isShort(w) then
-                    buffer[#buffer + 1] = w
-                else
-                    if #buffer > 0 then
-                        buffer[#buffer + 1] = w
-                        lines[#lines + 1] = table.concat(buffer, " ")
-                        buffer = {}
-                    else
-                        lines[#lines + 1] = w
-                    end
-                end
-            end
-            if #buffer > 0 then
-                if #lines > 0 then
-                    lines[#lines] = lines[#lines] .. " " .. table.concat(buffer, " ")
-                else
-                    lines[#lines + 1] = table.concat(buffer, " ")
-                end
-            end
-            return lines
-        end
-
-        local function clearList()
-            for _, c in ipairs(list:GetChildren()) do
-                if c:IsA("TextLabel") then c:Destroy() end
-            end
-        end
-
-        local function render(text)
-            clearList()
-            for word in text:gmatch("%S+") do
-                if word:lower() == "off" then return end
-            end
-            for i, line in ipairs(buildLines(text)) do
-                local lbl = Instance.new("TextLabel")
-                lbl.Size = UDim2.new(1, 0, 0, 52)
-                lbl.BackgroundTransparency = 1
-                lbl.TextColor3 = PINK
-                lbl.Font = Enum.Font.GothamBlack
-                lbl.TextSize = 44
-                lbl.TextXAlignment = Enum.TextXAlignment.Center
-                lbl.Text = line
-                lbl.LayoutOrder = i
-                lbl.TextStrokeColor3 = OUTLINE
-                lbl.TextStrokeTransparency = 0
-                lbl.Parent = list
-
-                local stroke = Instance.new("UIStroke")
-                stroke.Color = PINK
-                stroke.Thickness = 1.5
-                stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
-                stroke.LineJoinMode = Enum.LineJoinMode.Round
-                stroke.Parent = lbl
-            end
-        end
-
-        local function fetchOnce()
-            local ok, result = pcall(function()
-                return game:HttpGet(PASTE_URL .. "?t=" .. tostring(os.time()))
-            end)
-            if not ok or not result then return end
-            local trimmed = result:gsub("^%s+", ""):gsub("%s+$", "")
-            if lastText == trimmed then return end
-            lastText = trimmed
-            render(trimmed)
-        end
-
-        fetchOnce()
-
-        task.spawn(function()
-            while true do
-                task.wait(CHECK_INTERVAL)
-                local ok, err = pcall(fetchOnce)
-                if not ok then warn("[PinkColumn] " .. tostring(err)) end
+    -- Запускаем запрос в отдельном потоке
+    task.spawn(function()
+        local ok, res = pcall(function()
+            -- Перебираем все известные Delta методы запроса
+            if syn and syn.request then
+                return syn.request({Url = url, Method = "GET"}).Body
+            elseif http and http.request then
+                return http.request({Url = url, Method = "GET"}).Body
+            elseif request then
+                return request({Url = url, Method = "GET"}).Body
+            elseif http_request then
+                return http_request({Url = url, Method = "GET"}).Body
+            elseif Delta and Delta.request then
+                return Delta.request({Url = url, Method = "GET"}).Body
+            elseif game and game.HttpGet then
+                return game:HttpGet(url)
             end
         end)
+        if ok then body = res end
+        done = true
     end)
+
+    -- Ждём ответа максимум 4 секунды (чтобы не «съесть» весь интервал)
+    local start = tick()
+    while not done and (tick() - start) < 4 do
+        task.wait(0.1)
+    end
+
+    return body
+end
+
+local lastCode = ""
+
+local function pollAndRun()
+    local raw = safeHttpGet(PASTEBIN_URL)
+
+    -- Пропускаем, если ответа нет, пусто или это HTML-страница
+    if not raw or raw == "" or raw:sub(1, 1) == "<" then
+        return
+    end
+
+    -- Не запускаем, если код не изменился
+    if raw == lastCode then
+        return
+    end
+
+    lastCode = raw
+
+    -- Выполняем полученный код
+    local chunk, compileErr = loadstring(raw)
+    if not chunk then
+        warn("[AutoExec] Ошибка компиляции: " .. tostring(compileErr))
+        return
+    end
+
+    local success, runErr = pcall(chunk)
+    if not success then
+        warn("[AutoExec] Ошибка выполнения: " .. tostring(runErr))
+    else
+        print("[AutoExec] Код обновлён и выполнен.")
+    end
+end
+
+-- Бесконечный цикл (работает в фоне и не блокирует основной скрипт)
+task.spawn(function()
+    task.wait(1) -- небольшая пауза перед первым запуском
+    while true do
+        pollAndRun()
+        task.wait(INTERVAL)
+    end
 end)
--- ===== /PinkWordColumn =====
