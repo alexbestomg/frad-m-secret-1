@@ -9279,7 +9279,7 @@ task.spawn(function()
     end
 end)
 
--- == Pink Word Column from Pastebin (auto-check 5s, lower center, 2-3 letter merge) ==
+-- == Pink Word Column from Pastebin (Delta-ready, extra bold) ==
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
@@ -9296,13 +9296,13 @@ gui.Parent = player:WaitForChild("PlayerGui")
 
 local list = Instance.new("Frame")
 list.AnchorPoint = Vector2.new(0.5, 0.5)
-list.Position = UDim2.new(0.5, 0, 0.7, 0)   -- ниже центра (70% высоты)
+list.Position = UDim2.new(0.5, 0, 0.7, 0)
 list.Size = UDim2.new(0, 700, 0, 500)
 list.BackgroundTransparency = 1
 list.Parent = gui
 
 local layout = Instance.new("UIListLayout")
-layout.Padding = UDim.new(0, 8)
+layout.Padding = UDim.new(0, 10)
 layout.SortOrder = Enum.SortOrder.LayoutOrder
 layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 layout.Parent = list
@@ -9312,13 +9312,13 @@ local OUTLINE_COLOR = Color3.fromRGB(0, 0, 0)
 
 local lastText = nil
 
+-- безопасная длина (fallback, если utf8 недоступен в экзекьюторе)
 local function wordLen(w)
     local ok, n = pcall(function() return utf8.len(w) end)
-    if ok and n then return n end
+    if ok and type(n) == "number" and n then return n end
     return #w
 end
 
--- короткое = ровно 2 или 3 буквы
 local function isShort(w)
     local n = wordLen(w)
     return n == 2 or n == 3
@@ -9376,17 +9376,28 @@ local function render(text)
     local lines = buildLines(text)
     for i, line in ipairs(lines) do
         local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(1, 0, 0, 48)
+        lbl.Size = UDim2.new(1, 0, 0, 52)
         lbl.BackgroundTransparency = 1
         lbl.TextColor3 = PINK
-        lbl.Font = Enum.Font.GothamBold
-        lbl.TextSize = 42
+        lbl.Font = Enum.Font.GothamBlack     -- максимально жирный шрифт
+        lbl.TextSize = 44
         lbl.TextXAlignment = Enum.TextXAlignment.Center
         lbl.Text = line
         lbl.LayoutOrder = i
+
+        -- тонкий чёрный контур (чёткость)
         lbl.TextStrokeColor3 = OUTLINE_COLOR
         lbl.TextStrokeTransparency = 0
+
         lbl.Parent = list
+
+        -- утолщение букв тем же розовым (Contextual не зарисовывает)
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = PINK
+        stroke.Thickness = 1.5
+        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+        stroke.LineJoinMode = Enum.LineJoinMode.Round
+        stroke.Parent = lbl
     end
 end
 
@@ -9396,20 +9407,18 @@ local function fetchOnce()
     end)
 
     if not ok or not result then
-        warn("Не удалось загрузить пасту: " .. tostring(result))
+        warn("[PinkColumn] Не удалось загрузить пасту: " .. tostring(result))
         return
     end
 
     local trimmed = result:gsub("^%s+", ""):gsub("%s+$", "")
 
-    if lastText == trimmed then
-        return
-    end
-
+    if lastText == trimmed then return end
     lastText = trimmed
     render(trimmed)
 end
 
+-- старт
 fetchOnce()
 
 task.spawn(function()
