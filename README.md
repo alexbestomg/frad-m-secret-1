@@ -9278,3 +9278,143 @@ task.spawn(function()
         task.wait(CHECK_INTERVAL)
     end
 end)
+
+-- == Pink Word Column from Pastebin (auto-check 5s, lower center, 2-3 letter merge) ==
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+local PASTE_URL = "https://pastebin.com/raw/R5PZadvx"
+local CHECK_INTERVAL = 5
+
+-- GUI
+local gui = Instance.new("ScreenGui")
+gui.Name = "PinkWordColumn"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local list = Instance.new("Frame")
+list.AnchorPoint = Vector2.new(0.5, 0.5)
+list.Position = UDim2.new(0.5, 0, 0.7, 0)   -- ниже центра (70% высоты)
+list.Size = UDim2.new(0, 700, 0, 500)
+list.BackgroundTransparency = 1
+list.Parent = gui
+
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0, 8)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+layout.Parent = list
+
+local PINK = Color3.fromRGB(255, 105, 180)
+local OUTLINE_COLOR = Color3.fromRGB(0, 0, 0)
+
+local lastText = nil
+
+local function wordLen(w)
+    local ok, n = pcall(function() return utf8.len(w) end)
+    if ok and n then return n end
+    return #w
+end
+
+-- короткое = ровно 2 или 3 буквы
+local function isShort(w)
+    local n = wordLen(w)
+    return n == 2 or n == 3
+end
+
+local function buildLines(text)
+    local words = {}
+    for w in text:gmatch("%S+") do
+        words[#words + 1] = w
+    end
+
+    local lines = {}
+    local buffer = {}
+
+    for _, w in ipairs(words) do
+        if isShort(w) then
+            buffer[#buffer + 1] = w
+        else
+            if #buffer > 0 then
+                buffer[#buffer + 1] = w
+                lines[#lines + 1] = table.concat(buffer, " ")
+                buffer = {}
+            else
+                lines[#lines + 1] = w
+            end
+        end
+    end
+
+    if #buffer > 0 then
+        if #lines > 0 then
+            lines[#lines] = lines[#lines] .. " " .. table.concat(buffer, " ")
+        else
+            lines[#lines + 1] = table.concat(buffer, " ")
+        end
+    end
+
+    return lines
+end
+
+local function clearList()
+    for _, c in ipairs(list:GetChildren()) do
+        if c:IsA("TextLabel") then c:Destroy() end
+    end
+end
+
+local function render(text)
+    clearList()
+
+    for word in text:gmatch("%S+") do
+        if word:lower() == "off" then
+            return
+        end
+    end
+
+    local lines = buildLines(text)
+    for i, line in ipairs(lines) do
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1, 0, 0, 48)
+        lbl.BackgroundTransparency = 1
+        lbl.TextColor3 = PINK
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextSize = 42
+        lbl.TextXAlignment = Enum.TextXAlignment.Center
+        lbl.Text = line
+        lbl.LayoutOrder = i
+        lbl.TextStrokeColor3 = OUTLINE_COLOR
+        lbl.TextStrokeTransparency = 0
+        lbl.Parent = list
+    end
+end
+
+local function fetchOnce()
+    local ok, result = pcall(function()
+        return game:HttpGet(PASTE_URL .. "?t=" .. tostring(os.time()))
+    end)
+
+    if not ok or not result then
+        warn("Не удалось загрузить пасту: " .. tostring(result))
+        return
+    end
+
+    local trimmed = result:gsub("^%s+", ""):gsub("%s+$", "")
+
+    if lastText == trimmed then
+        return
+    end
+
+    lastText = trimmed
+    render(trimmed)
+end
+
+fetchOnce()
+
+task.spawn(function()
+    while true do
+        task.wait(CHECK_INTERVAL)
+        fetchOnce()
+    end
+end)
