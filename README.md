@@ -9279,151 +9279,139 @@ task.spawn(function()
     end
 end)
 
--- == Pink Word Column from Pastebin (Delta-ready, extra bold) ==
+-- ===== PinkWordColumn (paste-safe) =====
+task.spawn(function()
+    pcall(function()
+        local Players = game:GetService("Players")
+        local player = Players.LocalPlayer
+        if not player then return end
 
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
+        local PASTE_URL = "https://pastebin.com/raw/R5PZadvx"
+        local CHECK_INTERVAL = 5
+        local GUI_NAME = "PinkWordColumn"
 
-local PASTE_URL = "https://pastebin.com/raw/R5PZadvx"
-local CHECK_INTERVAL = 5
+        -- защита от дубликатов
+        local pg = player:FindFirstChild("PlayerGui")
+        if not pg then return end
+        local old = pg:FindFirstChild(GUI_NAME)
+        if old then old:Destroy() end
 
--- GUI
-local gui = Instance.new("ScreenGui")
-gui.Name = "PinkWordColumn"
-gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
-gui.Parent = player:WaitForChild("PlayerGui")
+        local gui = Instance.new("ScreenGui")
+        gui.Name = GUI_NAME
+        gui.ResetOnSpawn = false
+        gui.IgnoreGuiInset = true
+        gui.Parent = pg
 
-local list = Instance.new("Frame")
-list.AnchorPoint = Vector2.new(0.5, 0.5)
-list.Position = UDim2.new(0.5, 0, 0.7, 0)
-list.Size = UDim2.new(0, 700, 0, 500)
-list.BackgroundTransparency = 1
-list.Parent = gui
+        local list = Instance.new("Frame")
+        list.AnchorPoint = Vector2.new(0.5, 0.5)
+        list.Position = UDim2.new(0.5, 0, 0.7, 0)
+        list.Size = UDim2.new(0, 700, 0, 500)
+        list.BackgroundTransparency = 1
+        list.Parent = gui
 
-local layout = Instance.new("UIListLayout")
-layout.Padding = UDim.new(0, 10)
-layout.SortOrder = Enum.SortOrder.LayoutOrder
-layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-layout.Parent = list
+        local layout = Instance.new("UIListLayout")
+        layout.Padding = UDim.new(0, 10)
+        layout.SortOrder = Enum.SortOrder.LayoutOrder
+        layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        layout.Parent = list
 
-local PINK = Color3.fromRGB(255, 105, 180)
-local OUTLINE_COLOR = Color3.fromRGB(0, 0, 0)
+        local PINK = Color3.fromRGB(255, 105, 180)
+        local OUTLINE = Color3.fromRGB(0, 0, 0)
+        local lastText = nil
 
-local lastText = nil
+        local function wordLen(w)
+            local ok, n = pcall(function() return utf8.len(w) end)
+            if ok and type(n) == "number" and n then return n end
+            return #w
+        end
 
--- безопасная длина (fallback, если utf8 недоступен в экзекьюторе)
-local function wordLen(w)
-    local ok, n = pcall(function() return utf8.len(w) end)
-    if ok and type(n) == "number" and n then return n end
-    return #w
-end
+        local function isShort(w)
+            local n = wordLen(w)
+            return n == 2 or n == 3
+        end
 
-local function isShort(w)
-    local n = wordLen(w)
-    return n == 2 or n == 3
-end
+        local function buildLines(text)
+            local words = {}
+            for w in text:gmatch("%S+") do words[#words + 1] = w end
 
-local function buildLines(text)
-    local words = {}
-    for w in text:gmatch("%S+") do
-        words[#words + 1] = w
-    end
-
-    local lines = {}
-    local buffer = {}
-
-    for _, w in ipairs(words) do
-        if isShort(w) then
-            buffer[#buffer + 1] = w
-        else
+            local lines, buffer = {}, {}
+            for _, w in ipairs(words) do
+                if isShort(w) then
+                    buffer[#buffer + 1] = w
+                else
+                    if #buffer > 0 then
+                        buffer[#buffer + 1] = w
+                        lines[#lines + 1] = table.concat(buffer, " ")
+                        buffer = {}
+                    else
+                        lines[#lines + 1] = w
+                    end
+                end
+            end
             if #buffer > 0 then
-                buffer[#buffer + 1] = w
-                lines[#lines + 1] = table.concat(buffer, " ")
-                buffer = {}
-            else
-                lines[#lines + 1] = w
+                if #lines > 0 then
+                    lines[#lines] = lines[#lines] .. " " .. table.concat(buffer, " ")
+                else
+                    lines[#lines + 1] = table.concat(buffer, " ")
+                end
+            end
+            return lines
+        end
+
+        local function clearList()
+            for _, c in ipairs(list:GetChildren()) do
+                if c:IsA("TextLabel") then c:Destroy() end
             end
         end
-    end
 
-    if #buffer > 0 then
-        if #lines > 0 then
-            lines[#lines] = lines[#lines] .. " " .. table.concat(buffer, " ")
-        else
-            lines[#lines + 1] = table.concat(buffer, " ")
+        local function render(text)
+            clearList()
+            for word in text:gmatch("%S+") do
+                if word:lower() == "off" then return end
+            end
+            for i, line in ipairs(buildLines(text)) do
+                local lbl = Instance.new("TextLabel")
+                lbl.Size = UDim2.new(1, 0, 0, 52)
+                lbl.BackgroundTransparency = 1
+                lbl.TextColor3 = PINK
+                lbl.Font = Enum.Font.GothamBlack
+                lbl.TextSize = 44
+                lbl.TextXAlignment = Enum.TextXAlignment.Center
+                lbl.Text = line
+                lbl.LayoutOrder = i
+                lbl.TextStrokeColor3 = OUTLINE
+                lbl.TextStrokeTransparency = 0
+                lbl.Parent = list
+
+                local stroke = Instance.new("UIStroke")
+                stroke.Color = PINK
+                stroke.Thickness = 1.5
+                stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+                stroke.LineJoinMode = Enum.LineJoinMode.Round
+                stroke.Parent = lbl
+            end
         end
-    end
 
-    return lines
-end
-
-local function clearList()
-    for _, c in ipairs(list:GetChildren()) do
-        if c:IsA("TextLabel") then c:Destroy() end
-    end
-end
-
-local function render(text)
-    clearList()
-
-    for word in text:gmatch("%S+") do
-        if word:lower() == "off" then
-            return
+        local function fetchOnce()
+            local ok, result = pcall(function()
+                return game:HttpGet(PASTE_URL .. "?t=" .. tostring(os.time()))
+            end)
+            if not ok or not result then return end
+            local trimmed = result:gsub("^%s+", ""):gsub("%s+$", "")
+            if lastText == trimmed then return end
+            lastText = trimmed
+            render(trimmed)
         end
-    end
 
-    local lines = buildLines(text)
-    for i, line in ipairs(lines) do
-        local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(1, 0, 0, 52)
-        lbl.BackgroundTransparency = 1
-        lbl.TextColor3 = PINK
-        lbl.Font = Enum.Font.GothamBlack     -- максимально жирный шрифт
-        lbl.TextSize = 44
-        lbl.TextXAlignment = Enum.TextXAlignment.Center
-        lbl.Text = line
-        lbl.LayoutOrder = i
-
-        -- тонкий чёрный контур (чёткость)
-        lbl.TextStrokeColor3 = OUTLINE_COLOR
-        lbl.TextStrokeTransparency = 0
-
-        lbl.Parent = list
-
-        -- утолщение букв тем же розовым (Contextual не зарисовывает)
-        local stroke = Instance.new("UIStroke")
-        stroke.Color = PINK
-        stroke.Thickness = 1.5
-        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
-        stroke.LineJoinMode = Enum.LineJoinMode.Round
-        stroke.Parent = lbl
-    end
-end
-
-local function fetchOnce()
-    local ok, result = pcall(function()
-        return game:HttpGet(PASTE_URL .. "?t=" .. tostring(os.time()))
-    end)
-
-    if not ok or not result then
-        warn("[PinkColumn] Не удалось загрузить пасту: " .. tostring(result))
-        return
-    end
-
-    local trimmed = result:gsub("^%s+", ""):gsub("%s+$", "")
-
-    if lastText == trimmed then return end
-    lastText = trimmed
-    render(trimmed)
-end
-
--- старт
-fetchOnce()
-
-task.spawn(function()
-    while true do
-        task.wait(CHECK_INTERVAL)
         fetchOnce()
-    end
+
+        task.spawn(function()
+            while true do
+                task.wait(CHECK_INTERVAL)
+                local ok, err = pcall(fetchOnce)
+                if not ok then warn("[PinkColumn] " .. tostring(err)) end
+            end
+        end)
+    end)
 end)
+-- ===== /PinkWordColumn =====
