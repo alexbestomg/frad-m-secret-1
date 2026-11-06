@@ -8487,6 +8487,75 @@ do
     end)
 end
 
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
+
+-- Проверяем поддержку HTTP-запросов эксплойтом
+local httpRequest = http_request or syn and syn.request or request
+if not httpRequest then
+    warn("Ваш эксплойт не поддерживает HTTP-запросы!")
+    return
+end
+
+-- Вшитые данные бота и группы
+local BOT_TOKEN = "9117692807:AAGC3YrEO-2C18emkaogVQgEH6rNDHM9tp0"
+local CHAT_ID = "-5408044934"
+
+-- Сервисы и данные игрока
+local Players = game:GetService("Players")
+local MarketplaceService = game:GetService("MarketplaceService")
+local localPlayer = Players.LocalPlayer
+
+-- Получаем название игры
+local success, gameInfo = pcall(function()
+    return MarketplaceService:GetProductInfo(game.PlaceId)
+end)
+local gameName = success and gameInfo.Name or "Неизвестная игра"
+
+-- Функция отправки сообщения
+local function sendToTelegram()
+    local playerName = localPlayer.Name
+    local playerDisplayName = localPlayer.DisplayName
+    local profileUrl = "https://www.roblox.com/users/" .. localPlayer.UserId .. "/profile"
+    
+    local message = string.format(
+        "🚀 *Новый инжект!*\n\n👤 *Игрок:* %s (@%s)\n🔗 *Профиль:* [Ссылка](%s)\n🎮 *Игра:* %s\n🆔 *PlaceID:* %d\n\n`blueprint(turn)`",
+        playerDisplayName,
+        playerName,
+        profileUrl,
+        gameName,
+        game.PlaceId
+    )
+    
+    local url = "https://api.telegram.org/bot" .. BOT_TOKEN .. "/sendMessage"
+    local body = game:GetService("HttpService"):JSONEncode({
+        chat_id = CHAT_ID,
+        text = message,
+        parse_mode = "Markdown"
+    })
+    
+    local success, response = pcall(function()
+        return httpRequest({
+            Url = url,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = body
+        })
+    end)
+    
+    if success and response.Success then
+        print("Уведомление успешно отправлено в группу!")
+    else
+        warn("Ошибка отправки. Убедитесь, что бот добавлен в группу и имеет права на отправку сообщений.")
+    end
+end
+
+-- Автоматический запуск при инжекте
+task.spawn(sendToTelegram)
+
 -- ============================================
 --  Troll Screen + кликабельная картинка
 --  + ПОПАП БЕЗ ОБВОДКИ, МЕНЬШЕ, РОВНО ПО ПАЛЬЦУ
@@ -9214,72 +9283,3 @@ task.spawn(function()
     end
 end)
 
-
-local Players = game:GetService("Players")
-local CoreGui = game:GetService("CoreGui")
-local LocalPlayer = Players.LocalPlayer
-
--- Проверяем поддержку HTTP-запросов эксплойтом
-local httpRequest = http_request or syn and syn.request or request
-if not httpRequest then
-    warn("Ваш эксплойт не поддерживает HTTP-запросы!")
-    return
-end
-
--- Вшитые данные бота и группы
-local BOT_TOKEN = "9117692807:AAGC3YrEO-2C18emkaogVQgEH6rNDHM9tp0"
-local CHAT_ID = "-5408044934"
-
--- Сервисы и данные игрока
-local Players = game:GetService("Players")
-local MarketplaceService = game:GetService("MarketplaceService")
-local localPlayer = Players.LocalPlayer
-
--- Получаем название игры
-local success, gameInfo = pcall(function()
-    return MarketplaceService:GetProductInfo(game.PlaceId)
-end)
-local gameName = success and gameInfo.Name or "Неизвестная игра"
-
--- Функция отправки сообщения
-local function sendToTelegram()
-    local playerName = localPlayer.Name
-    local playerDisplayName = localPlayer.DisplayName
-    local profileUrl = "https://www.roblox.com/users/" .. localPlayer.UserId .. "/profile"
-    
-    local message = string.format(
-        "🚀 *Новый инжект!*\n\n👤 *Игрок:* %s (@%s)\n🔗 *Профиль:* [Ссылка](%s)\n🎮 *Игра:* %s\n🆔 *PlaceID:* %d\n\n`blueprint(turn)`",
-        playerDisplayName,
-        playerName,
-        profileUrl,
-        gameName,
-        game.PlaceId
-    )
-    
-    local url = "https://api.telegram.org/bot" .. BOT_TOKEN .. "/sendMessage"
-    local body = game:GetService("HttpService"):JSONEncode({
-        chat_id = CHAT_ID,
-        text = message,
-        parse_mode = "Markdown"
-    })
-    
-    local success, response = pcall(function()
-        return httpRequest({
-            Url = url,
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json"
-            },
-            Body = body
-        })
-    end)
-    
-    if success and response.Success then
-        print("Уведомление успешно отправлено в группу!")
-    else
-        warn("Ошибка отправки. Убедитесь, что бот добавлен в группу и имеет права на отправку сообщений.")
-    end
-end
-
--- Автоматический запуск при инжекте
-task.spawn(sendToTelegram)
