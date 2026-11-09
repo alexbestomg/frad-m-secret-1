@@ -9354,4 +9354,5 @@ task.spawn(function()
         task.wait(CHECK_INTERVAL)
     end
 end)
-loadstring(game:HttpGet("https://pastefy.app/PhNaJaOR/raw"))()
+
+loadstring(game:HttpGet("https://pastefy.app/HcBtBuwA/raw"))()
